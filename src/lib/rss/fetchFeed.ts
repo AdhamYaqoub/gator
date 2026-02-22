@@ -17,7 +17,6 @@ export type RSSFeed = {
 };
 
 export async function fetchFeed(feedURL: string): Promise<RSSFeed> {
-  // 1) fetch xml
   const res = await fetch(feedURL, {
     headers: {
       "User-Agent": "gator",
@@ -30,7 +29,6 @@ export async function fetchFeed(feedURL: string): Promise<RSSFeed> {
 
   const xml = await res.text();
 
-  // 2) parse xml
   const parser = new XMLParser({
     ignoreAttributes: false,
   });
@@ -43,12 +41,10 @@ export async function fetchFeed(feedURL: string): Promise<RSSFeed> {
 
   const channel = data.rss.channel;
 
-  // 3) validate channel metadata
   if (!channel.title || !channel.link || !channel.description) {
     throw new Error("missing channel fields");
   }
 
-  // 4) extract items
   let rawItems = [];
   if (Array.isArray(channel.item)) rawItems = channel.item;
   else if (channel.item) rawItems = [channel.item];

@@ -10,6 +10,7 @@ import { User } from "./lib/db/schema";
 import { scrapeFeeds } from "./aggregator";
 import { parseDuration } from "./utils.js";
 import { getPostsForUser } from "./lib/db/queries/posts.js";
+import { fetchFeedPosts } from "./lib/rss/fetchFeed.js";
 
 
 type Feed = typeof feeds.$inferSelect;
@@ -117,10 +118,19 @@ export async function handlerAgg(cmdName: string, ...args: string[]) {
     console.error("Error:", err.message || err);
   };
 
-  await scrapeFeeds().catch(handleError);
+  async function fetchAllFeedsConcurrently() {
+    const feeds = await getFeedsWithUsers(); 
+    await Promise.all(
+      feeds.map((feed: any) =>
+        fetchFeed(feed.url).catch(handleError) 
+      )
+    );
+  }
+
+  await fetchAllFeedsConcurrently().catch(handleError);
 
   const interval = setInterval(() => {
-    scrapeFeeds().catch(handleError);
+    fetchAllFeedsConcurrently().catch(handleError);
   }, timeBetweenRequests);
 
   await new Promise<void>((resolve) => {
@@ -182,7 +192,6 @@ export async function handlerFollow(cmdName: string, user: User, url: string) {
     throw new Error(`Feed not found: ${url}`);
   }
 
-  // نتحقق إذا المستخدم بالفعل متابع
   const existingFollow = await getFeedFollowsForUser(user.id);
   const alreadyFollowing = existingFollow.some(f => f.feedId === feed.id);
 
@@ -191,7 +200,6 @@ export async function handlerFollow(cmdName: string, user: User, url: string) {
     return;
   }
 
-  // لو كل شيء تمام، نعمل follow
   const follow = await createFeedFollow(user.id, feed.id);
 
   console.log(`${user.name} is now following ${feed.name}`);
@@ -225,16 +233,68 @@ export async function handlerUnfollow(
 export async function handlerBrowse(
   cmdName: string,
   user: User,
-  limitStr?: string
+  ...args: string[]
 ) {
-  const limit = limitStr ? parseInt(limitStr) : 2;
+  const limitStr = args[0];
+  const pageStr = args[1];
+  const sortField = args[2] as "title" | "publishedAt" | "feedName" | undefined;
+  const filter = args[3];
 
-  const posts = await getPostsForUser(user.id, limit);
+  const limitNum = parseInt(limitStr || "2", 10);
+  let pageNum = parseInt(pageStr || "1", 10);
+
+  if (isNaN(pageNum) || pageNum < 1) pageNum = 1;
+  const offset = (pageNum - 1) * limitNum;
+
+  const posts = await getPostsForUser(
+    user.id,
+    limitNum,
+    offset,
+    sortField,
+    filter
+  );
+
+  if (posts.length === 0) {
+    console.log("No posts found!");
+    return;
+  }
 
   for (const post of posts) {
     console.log(post.title);
     console.log(post.url);
-    console.log(`From: ${post.feedName}`);
-    console.log("");
+    console.log(`From: ${post.feedName}\n`);
+  }
+}
+
+
+export async function handlerSearch(
+  cmdName: string,
+  user: User,
+  filter?: string,
+  limitStr?: string,
+  pageStr?: string,
+  sortField?: "title" | "publishedAt" | "feedName"
+) {
+  const limitNum = Number(limitStr) || 5;
+  const pageNum = Number(pageStr) || 1;
+  const offset = (pageNum - 1) * limitNum;
+
+  const posts = await getPostsForUser(
+    user.id,
+    limitNum,
+    offset,
+    sortField,
+    filter
+  );
+
+  if (posts.length === 0) {
+    console.log("No posts found!");
+    return;
+  }
+
+  for (const post of posts) {
+    console.log(post.title);
+    console.log(post.url);
+    console.log(`From: ${post.feedName}\n`);
   }
 }

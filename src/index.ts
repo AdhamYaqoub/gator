@@ -1,5 +1,5 @@
 import { registerCommand, runCommand, handlerLogin, handlerRegister,handlerReset,handlerUsers,handlerAddFeed,handlerFollow,handlerFollowing, handlerBrowse } from "./commands.js";
-import { handlerAgg ,handlerFeeds, handlerUnfollow} from "./commands.js";
+import { handlerAgg ,handlerFeeds, handlerUnfollow, handlerSearch } from "./commands.js";
 import { middlewareLoggedIn } from "./middleware/loggedIn.js";
 
 async function main() {
@@ -20,6 +20,7 @@ async function main() {
 
   registerCommand(registry, "browse", middlewareLoggedIn(handlerBrowse));
 
+registerCommand(registry, "search", middlewareLoggedIn(handlerSearch));
 
   const args = process.argv.slice(2);
 

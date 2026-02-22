@@ -1,6 +1,11 @@
 import { db } from "..";
 import { feedFollows, feeds, users } from "../schema";
-import { and, eq, asc   } from "drizzle-orm";
+import { and, eq, asc } from "drizzle-orm";
+import Parser from "rss-parser";
+import { createPost } from "./posts";
+
+const parser = new Parser();
+
 
 export async function createFeed(name: string, url: string, userId: string) {
   const [result] = await db.insert(feeds).values({ name, url, userId }).returning();
@@ -34,7 +39,7 @@ export async function createFeedFollow(userId: string, feedId: string) {
 export async function getFeedFollowsForUser(userId: string) {
   return db
     .select({
-      feedId: feeds.id,       
+      feedId: feeds.id,
       feedName: feeds.name,
     })
     .from(feedFollows)
@@ -42,27 +47,23 @@ export async function getFeedFollowsForUser(userId: string) {
     .where(eq(feedFollows.userId, userId));
 }
 
-
 export async function deleteFeedFollowByUrl(userId: string, url: string) {
   const feed = await db.query.feeds.findFirst({
     where: (f, { eq }) => eq(f.url, url),
   });
 
-  if (!feed) {
-    throw new Error("Feed not found");
-  }
+  if (!feed) throw new Error("Feed not found");
 
   const deleted = await db
     .delete(feedFollows)
     .where(and(eq(feedFollows.userId, userId), eq(feedFollows.feedId, feed.id)))
     .returning();
 
-  if (deleted.length === 0) {
-    throw new Error("You are not following this feed");
-  }
+  if (deleted.length === 0) throw new Error("You are not following this feed");
 
   return feed;
 }
+
 
 export async function markFeedFetched(feedId: string) {
   await db
@@ -82,4 +83,37 @@ export async function getNextFeedToFetch() {
     .limit(1);
 
   return result[0];
+}
+
+
+
+export async function aggregateFeedsConcurrently(concurrency: number = 5) {
+  const feedsToFetch = await db.select().from(feeds);
+
+  for (let i = 0; i < feedsToFetch.length; i += concurrency) {
+    const batch = feedsToFetch.slice(i, i + concurrency);
+
+    await Promise.all(
+      batch.map(async (feed) => {
+        console.log(`Fetching feed: ${feed.name}`);
+        try {
+          const feedData = await parser.parseURL(feed.url);
+
+          for (const item of feedData.items) {
+            await createPost({
+              title: item.title || "No title",
+              url: item.link || "",
+              description: item.contentSnippet || item.content,
+              publishedAt: item.pubDate ? new Date(item.pubDate) : undefined,
+              feedId: feed.id,
+            });
+          }
+
+          await markFeedFetched(feed.id);
+        } catch (err) {
+          console.error(`Failed to fetch ${feed.name}:`, err);
+        }
+      })
+    );
+  }
 }
