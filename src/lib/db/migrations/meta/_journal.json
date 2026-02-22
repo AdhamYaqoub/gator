@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1771497476825,
+      "tag": "0000_fixed_post",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1771682581480,
+      "tag": "0001_harsh_marvel_apes",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1771700000000,
+      "tag": "0002_create_feed_follows",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1771760152635,
+      "tag": "0003_mushy_owl",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1771761164256,
+      "tag": "0004_stormy_hellcat",
+      "breakpoints": true
+    }
+  ]
+}
